@@ -10,19 +10,6 @@ typedef _Bool bool;
 
 #define GETBIT64(x, k)  (x>>k)&1ULL
 
-typedef struct Settings{
-	uint64_t limit;
-	int runcount;
-	int warmupcount;
-	bool printprimes;
-}Settings;
-
-Settings settings;
-
-typedef struct SieveResult{
-	uint64_t* primes;
-	Timespan runtime;
-}SieveResult;
 
 #define BITSPERBYTE 8ULL
 

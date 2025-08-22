@@ -1,7 +1,35 @@
 #ifndef BENCHMARK_SIEVES_H
 	#define BENCHMARK_SIEVES_H
 #include <stdint.h>
+#include <ctype.h>
 #include "SievesShared.h"
+
+#define OPTION_NOT_FOUND (char)'?'
+#define OPTION_MISSING_ARG (char)':'
+#define MAX_OPTIONS 64 // at this point, something has gone horribly wrong.
+#define USAGE_MAX_LEN 2048
+
+void strtou(char* str){ //strtoupper
+	int i = 0;
+	char ch = str[i];
+	while(ch!='\0'){
+		ch = str[i];
+		str[i++] = toupper(ch);
+	}
+
+}
+
+typedef struct Settings{
+	uint64_t limit;
+	uint64_t runcount;
+	uint64_t warmupcount;
+	uint64_t printprimes;
+	uint64_t EvaluateRuntimeComplexity;
+	uint64_t verbose;
+}Settings;
+Settings settings;
+
+
 
 #define DONT_IGNORE_EVEN 0
 #define IGNORE_EVEN 1
@@ -12,8 +40,6 @@
 #define SIEVES_INIT_SZ 2
 #define SIEVES_RESIZE_FACTOR 2
 
-#define PRIMES10000_PATH "primes10000.txt"
-#define PRIME_PER_LINE 10
 
 // function=which function returned this value?
 #define LOG_FATAL_ERROR(function, ...)\
@@ -22,6 +48,11 @@
 	fprintf(stderr, "\nExiting...\n");\
 	exit(EXIT_FAILURE);}
 
+
+typedef struct SieveResult{
+	uint64_t* primes;
+	Timespan runtime;
+}SieveResult;
 
 
 uint64_t validPrimes[10000]; 
@@ -37,6 +68,7 @@ typedef struct Sieve{
         bool zalloc;                                            // whether the sieve expects a 0 allocated or 1 allocaeted array.
 	SieveResult* results;
 }Sieve;
+
 
 #define RegisterSieve(function, desc, ignore_even, zero_alloc)\
 	REGISTER_SIEVE((Sieve){\
