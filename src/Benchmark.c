@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <ctype.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -13,15 +12,16 @@
 #include "BenchmarkSieves.h"
 
 
-#define DEFAULT_LIMIT 1000 
-#define DEFAULT_RUNCOUNT 1 
-#define DEFAULT_WARMUP 0 
-#define DEFAULT_PRINT_PRIMES 0
-#define DEFAULT_EVALUATE_RUNTIME_COMPLEXITY 0
-#define DEFAULT_VERBOSE 0
+#define DEFAULT_FINDPRIMESUNTIL			1000 
+#define DEFAULT_RUNCOUNT			1 
+#define DEFAULT_WARMUP				0 
+#define DEFAULT_PRINT_PRIMES			0
+#define DEFAULT_EVALUATE_RUNTIME_COMPLEXITY	0
+#define DEFAULT_VERBOSE				0
+#define DEFAULT_HELP				0	
 
-// opt stuff
-static char ExecutablePath[32];
+char *ExecutablePath = "./BenchmarkSieves";
+// for whatever reason copying out of argv[0] is causing segfaults
 
 
 
@@ -33,10 +33,10 @@ typedef struct OptionWrapper{
 	char ch;
 	char* longopt;
 	int argSpec; // 0 = no, 1 = required, 2 = optional
-	char * description;
 
 	uint64_t Default; // might be annoying if i want non integer options
 	uint64_t* settingptr;
+	char * description;
 }Option;
 
 static Option Options[MAX_OPTIONS];
@@ -52,7 +52,7 @@ void test(){
 }
 
 
-void AddToUsageString(Option o, char* usage_string){
+void ConcatUsageString(Option o, char* usage_string){
 	// Option struct is still small enough to fit in 99% of cache lines (its 40B atm), 
 	// if it was like >128B maybe passing ptr is worth
 	char formatted_usage_line[512];
@@ -64,7 +64,7 @@ void AddToUsageString(Option o, char* usage_string){
 		   "\t-%c, --%s=%s\t%s\tDEFAULT=%llu\n", 
 		   o.ch, o.longopt, longopt_UPPER, o.description, o.Default);
 	if (err<=0){
-		fprintf(stderr, "ERROR: less than 1 char written to format string, check AddToUsageString for Option '%s'.\n",o.longopt);
+		fprintf(stderr, "ERROR: less than 1 char written to format string, check ConcatUsageString for Option '%s'.\n",o.longopt);
 		fprintf(stderr, "Exiting...\n");
 		free(longopt_UPPER);
 		exit(EXIT_FAILURE);
@@ -83,7 +83,7 @@ void AddToUsageString(Option o, char* usage_string){
 }
 
 void AddToOptString(Option o){
-	char optstring_tok[3];
+	char optstring_tok[4];
 	if (o.argSpec==required_argument){
 		sprintf(optstring_tok, "%c:", o.ch);
 	} else if (o.argSpec==optional_argument){
@@ -98,22 +98,28 @@ void AddToOptString(Option o){
 struct option long_options[MAX_OPTIONS];
 
 void RegisterOption(Option o){
+	fprintf(stderr, "Registering option: %s...\n",o.longopt);
 	if (o.argSpec<0 || o.argSpec>2){
 		fprintf(stderr, "ERROR: Option %s.argSpec is invalid.\n",o.longopt);
 		fprintf(stderr, "Exiting...\n");
 		exit(EXIT_FAILURE);
 	}
-	if (o.settingptr==NULL){
-		fprintf(stderr, "ERROR: Undefined/null ptr to setting value, %s is invalid.\n",o.longopt);
-		fprintf(stderr, "Exiting...\n");
-		exit(EXIT_FAILURE);
+	if (o.settingptr==NULL ){ // -h is allowed to have NULL assignment to settingptr; -h doesnt set anything 
+		if (o.ch!='h'){
+			fprintf(stderr, "ERROR: Undefined/null ptr to setting value, %s is invalid.\n",o.longopt);
+			fprintf(stderr, "Exiting...\n");
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		o.Default = *o.settingptr; // defaults are assigned to the settings value on settings init
 	}
 
-	AddToUsageString(o, UsageString);
+	ConcatUsageString(o, UsageString);
 	AddToOptString(o);
 	long_options[optionCount] = (struct option){o.longopt, o.argSpec, NULL, o.ch};
 
 	Options[optionCount++] = o;
+	fprintf(stderr, "\tRegistered option %s\n.", o.longopt);
 }
 
 void PrintUsage(){
@@ -123,22 +129,37 @@ void PrintUsage(){
 }
 
 Settings ParseArguments(int argc, char** argv){
+
+
 	Settings settings = (Settings){
-		.limit = DEFAULT_LIMIT,
-		.runcount = DEFAULT_RUNCOUNT,
-		.warmupcount = DEFAULT_WARMUP,
-		.printprimes = DEFAULT_PRINT_PRIMES,
-		.EvaluateRuntimeComplexity = DEFAULT_EVALUATE_RUNTIME_COMPLEXITY,
-		.verbose = DEFAULT_VERBOSE,
+		.findprimesuntil =		DEFAULT_FINDPRIMESUNTIL,
+		.runcount =			DEFAULT_RUNCOUNT,
+		.warmupcount =			DEFAULT_WARMUP,
+		.printprimes =			DEFAULT_PRINT_PRIMES,
+		.EvaluateRuntimeComplexity =	DEFAULT_EVALUATE_RUNTIME_COMPLEXITY,
+		.verbose =			DEFAULT_VERBOSE,
 	};
+	
+	RegisterOption((Option){
+		.ch = 'l', .longopt = "findprimesuntil",
+		.argSpec = required_argument,
+		.settingptr = &settings.findprimesuntil, 
+	});
 
 	RegisterOption((Option){
-		.ch = 'l',
-		.longopt = "limit",
+		.ch = 'r',
+		.longopt = "runcount",
 		.argSpec = required_argument,
-		.description = "Specify the number at which to stop sieving",
-		.settingptr = &settings.limit,
-		.Default = DEFAULT_LIMIT,
+		.settingptr = &settings.runcount,
+		.Default = DEFAULT_RUNCOUNT,
+	});
+
+	RegisterOption((Option){
+		.ch = 'h',
+		.longopt = "help",
+		.argSpec = no_argument,
+		.settingptr = NULL, 
+		.Default = DEFAULT_HELP,
 	});
 	//
 	
@@ -150,8 +171,7 @@ Settings ParseArguments(int argc, char** argv){
 	// Options THAT DONT REQUIRE an argument can be supplied in the forms, in any order.
 	//	 shortOpt | longOpt
 	//	 -o	  | --option 
-	
-	// Arguments can be supplied to certain options. This can be done in the following ways:
+	// Arguments can be supplied to options with .argSpec!=no_argument. This can be done in the following ways:
 	//	shortOpt | longOpt
 	//	-o 10	 | --option 10
 	//	-o=10	 | --option=10
@@ -173,21 +193,19 @@ Settings ParseArguments(int argc, char** argv){
 			if (ch == o.ch){
 				foundOption=true;
 				printf("Option %c found, long_options[%d]=%s\n", ch, optionIndex, long_options[optionIndex].name);
-				uint64_t val = 1; // if we are talking about a boolean thats been found, it will be TRUE/1
+				uint64_t arg = 1; // if we are talking about a boolean thats been found, it will be TRUE/i1
 				if (o.argSpec == required_argument){
-					printf("\tOptarg:%s\n", optarg);
-					val = atoi(optarg);
+					arg = atoi(optarg);
 				}
-				uint64_t default_val = o.Default;
-				*o.settingptr = val; // set the settings val to the arg
-				printf("settings.limit=%llu\n",settings.limit);
+				*o.settingptr = arg; // set the settings val to the arg
+				printf("settings.findprimesuntil=%llu\n",settings.findprimesuntil);
 				break;
 			}
 		}
 
 		if (ch==OPTION_NOT_FOUND){
 			if (foundOption == false){
-				fprintf(stderr, "Error: unknown option supplied (%c)!\n", optopt); 
+				fprintf(stderr, "Error: unknown option supplied --> (%c)!\n", optopt); 
 				exit(EXIT_FAILURE);
 			} else {
 				// very weird, because ch!=option not found but our loop missed it.
@@ -200,7 +218,7 @@ Settings ParseArguments(int argc, char** argv){
 }
 
 void PrintSettings(Settings s){
-	printf("\tLIMIT\ts.limit\n");
+	printf("\tfindprimesuntil\ts.findprimesuntil\n");
 	printf("\tRUNCOUNT\ts.runcount\n");
 	printf("\tWARMUPCOUNT\ts.warmupcount\n");
 	printf("\tPRINTPRIMES?\ts.printprimes\n");
@@ -218,10 +236,10 @@ static int SievesSize = SIEVES_INIT_SZ;
 
 
 
-static void PrintSieveInfo(Sieve s){
-	printf("%s (%p):\n\tIGNORES_EVEN:%d\n\tEXPECTS_ZALLOC:%d\n\tDESCRIPTION: %s\n",
-		s.name, s.RunSieve, s.ignoreEven, s.zalloc, s.description);
-}
+// static void PrintSieveInfo(Sieve s){
+// 	printf("%s (%p):\n\tIGNORES_EVEN:%d\n\tEXPECTS_ZALLOC:%d\n\tDESCRIPTION: %s\n",
+// 		s.name, s.RunSieve, s.ignoreEven, s.zalloc, s.description);
+// }
 /*
   NOTE: Ensure you add your sieves declaration to include/sieves.h   
  */
@@ -244,8 +262,7 @@ static void RegisterAllSieves(){
 }
 
 uint64_t uint64_ceildiv(uint64_t a, uint64_t b){
-	// undefined for b<0
-	assert(b!=0);
+	assert(b!=0); // undefined for b<0
 	return a/b + (a%b!=0);
 }
 
@@ -261,19 +278,19 @@ void BenchmarkAllSieves(Settings settings){
 		
 
 		for (int run = 0; run<settings.warmupcount; run++){
-			Timespan span; timeval before, after;
+			timeval before, after;
 
 			RecordTime(before);
-				sieve.RunSieve(settings.limit, sieve.results[run].primes, settings.printprimes);
+				sieve.RunSieve(settings.findprimesuntil, sieve.results[run].primes, settings.printprimes);
 			RecordTime(after);
 
 			// dont record warmups 
 		}
 		for (int run = 0; run<settings.runcount; run++){
-			Timespan span; timeval before, after;
+			timeval before, after;
 
 			RecordTime(before);
-				sieve.RunSieve(settings.limit, sieve.results[run].primes, settings.printprimes);
+				sieve.RunSieve(settings.findprimesuntil, sieve.results[run].primes, settings.printprimes);
 			RecordTime(after);
 
 			sieve.results[run].runtime = GetTimespan(before, after);
@@ -281,14 +298,14 @@ void BenchmarkAllSieves(Settings settings){
 	}
 
 	printf("Benchmarking finished!\n");
-	printf("Solving for %llu primes per run, %d runs (+%d warmup)\n", settings.limit, settings.runcount, settings.warmupcount);
-//	printf("Sieve Name\t|Found | Total time (%d runs) | Avg runtime (%llu primes) | µs/solve| \n",TotalRunCount,settings.limit);
+	printf("Solving for %llu primes per run, %llu runs (+%llu warmup)\n", settings.findprimesuntil, settings.runcount, settings.warmupcount);
+//	printf("Sieve Name\t|Found | Total time (%d runs) | Avg runtime (%llu primes) | µs/solve| \n",TotalRunCount,settings.findprimesuntil);
 	printf("Sieve Name\t|Found |\n");
 	for (int i = 0; i<SieveCount; i++){
 		Sieve sieve = Sieves[i];
 		if (sieve.isValid){
 			uint64_t count = 1;
-			for (uint64_t j = 0; j<settings.limit; j++){
+			for (uint64_t j = 0; j<settings.findprimesuntil; j++){
 				uint64_t* result = sieve.results[0].primes;
 				if(GET_RESULT(j)){
 					// TODO: something is broken here, probably in the macro
@@ -306,11 +323,10 @@ void BenchmarkAllSieves(Settings settings){
 }
 
 int main(int argc, char** argv){
-	sprintf(ExecutablePath, "%s", argv[0]);
 	settings = ParseArguments(argc, argv);
 
 	exit(EXIT_SUCCESS);
-	assert(settings.limit>2);
+	assert(settings.findprimesuntil>2);
 	RegisterAllSieves();
 	BenchmarkAllSieves(settings);
 	
@@ -329,7 +345,7 @@ int ValidateResult(SieveResult r){
 
 
 static void REGISTER_SIEVE(Sieve sieve){
-	int N = settings.limit;
+	int N = settings.findprimesuntil;
 	if (SieveCount>= SievesSize){
 		SievesSize *= SIEVES_RESIZE_FACTOR;
 		void* resized = realloc(Sieves, SievesSize);

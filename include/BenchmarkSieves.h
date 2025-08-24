@@ -20,7 +20,7 @@ void strtou(char* str){ //strtoupper
 }
 
 typedef struct Settings{
-	uint64_t limit;
+	uint64_t findprimesuntil;
 	uint64_t runcount;
 	uint64_t warmupcount;
 	uint64_t printprimes;
