@@ -1,5 +1,5 @@
 #ifndef SIEVES_SHARED_H
-	#define SIEVES_SHARED_H
+#define SIEVES_SHARED_H
 
 #include <stdint.h>
 #include "Timing.h"
@@ -8,9 +8,10 @@ typedef _Bool bool;
 #define true 1
 #define false 0
 
-#define GETBIT64(x, k)  (x>>k)&1ULL
+#define GETBIT64(x, k)  (x >> k)&1ULL
+#define GETBIT32(x, k)  (x>>k)&1U
 
 
 #define BITSPERBYTE 8ULL
 
-#endif 
+#endif

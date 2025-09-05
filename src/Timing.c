@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "Timing.h"
-Timespan GetTimespan(timeval before, timeval after){
+Timespan GetTimespan(wc_timeval before, wc_timeval after){
 	time_t s_diff = labs(after.tv_sec - before.tv_sec);
 	suseconds_t us_diff = abs(after.tv_usec - before.tv_usec);
 	//printf("BEFORE: us=%07d s=%ld\n AFTER: us=%07d s=%ld\n", before.tv_usec, before.tv_sec, after.tv_usec, after.tv_sec);

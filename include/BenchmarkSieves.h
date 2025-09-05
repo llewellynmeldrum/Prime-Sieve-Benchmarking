@@ -1,33 +1,20 @@
 #ifndef BENCHMARK_SIEVES_H
-	#define BENCHMARK_SIEVES_H
+#define BENCHMARK_SIEVES_H
 #include <stdint.h>
-#include <ctype.h>
 #include "SievesShared.h"
 
-#define OPTION_NOT_FOUND (char)'?'
-#define OPTION_MISSING_ARG (char)':'
-#define MAX_OPTIONS 64 // at this point, something has gone horribly wrong.
 #define USAGE_MAX_LEN 2048
 
-void strtou(char* str){ //strtoupper
-	int i = 0;
-	char ch = str[i];
-	while(ch!='\0'){
-		ch = str[i];
-		str[i++] = toupper(ch);
-	}
 
-}
-
-typedef struct Settings{
-	uint64_t findprimesuntil;
-	uint64_t runcount;
-	uint64_t warmupcount;
+typedef struct Settings {
+	uint64_t limit;
+	uint64_t runc;
+	uint64_t warmupc;
 	uint64_t printprimes;
-	uint64_t EvaluateRuntimeComplexity;
+	uint64_t evalrtc;
 	uint64_t verbose;
-}Settings;
-Settings settings;
+} Settings;
+
 
 
 
@@ -49,34 +36,38 @@ Settings settings;
 	exit(EXIT_FAILURE);}
 
 
-typedef struct SieveResult{
-	uint64_t* primes;
+typedef struct SieveResult {
+	uint64_t *primes;
+	uint64_t numIntegersInPrimes;
 	Timespan runtime;
-}SieveResult;
+} SieveResult;
 
 
-uint64_t validPrimes[10000]; 
 
-
-typedef struct Sieve{
+#define SIEVE_MAX_NAME_LEN 32
+#define SIEVE_MAX_DESC_LEN 128
+typedef struct Sieve {
 	bool isValid;
 	void (*RunSieve)(int N, uint64_t * primes, bool printPrimes);		// sieve function.
-	char name[128];                                         // Used when printing results (or debug/verbose mode)
-	char description[256];                                  // Used in debug/verbose mode.
-        bool ignoreEven;                                        // See ## BITARRAY for details.
+	char name[SIEVE_MAX_NAME_LEN];                                         // Used when printing results (or debug/verbose mode)
+	char description[SIEVE_MAX_DESC_LEN];                                  // Used in debug/verbose mode.
+	bool ignoreEven;                                        // See ## BITARRAY for details.
 //	bool threadSafe;                                        // Implement later
-        bool zalloc;                                            // whether the sieve expects a 0 allocated or 1 allocaeted array.
-	SieveResult* results;
-}Sieve;
+	bool zalloc;                                            // whether the sieve expects a 0 allocated or 1 allocaeted array.
+	SieveResult *results;		// an array of results
+} Sieve;
 
 
-#define RegisterSieve(function, desc, ignore_even, zero_alloc)\
-	REGISTER_SIEVE((Sieve){\
+#define RegisterSieve(function, desc, ignore_even, zero_alloc)do{\
+	REGISTER_SIEVE(\
+		(Sieve){\
 		.isValid = true,\
 		.RunSieve = function,\
 		.name = #function,\
 		.description = desc,\
 		.ignoreEven =ignore_even,\
 		.zalloc= zero_alloc\
-	})
+		}\
+	);\
+	}while(0)
 #endif

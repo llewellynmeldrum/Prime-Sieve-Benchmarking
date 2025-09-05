@@ -16,7 +16,7 @@
 		RecordTime(after);				\
 		span= GetTimespan(before, after);}		\
 
-typedef struct timeval timeval; // im lazy
+typedef struct timeval wc_timeval; // im lazy
 
 typedef struct timespan{
 	time_t m;
@@ -25,6 +25,6 @@ typedef struct timespan{
 	time_t us;
 }Timespan;
 
-Timespan GetTimespan(timeval before, timeval after);
+Timespan GetTimespan(wc_timeval before, wc_timeval after);
 void PrintTimespan(Timespan t);
 #endif //TIMING_H
